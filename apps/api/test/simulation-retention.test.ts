@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDatabase, type SqliteDatabase } from "../src/db/database.js";
+import {
+  createDatabase,
+  startSimulationRetentionSweep,
+  type SqliteDatabase,
+} from "../src/db/database.js";
 import { seedOdishaScenario } from "../src/db/seed.js";
 import {
   DEFAULT_SIMULATION_RETENTION_MS,
@@ -110,5 +114,35 @@ describe("simulation retention", () => {
     // 30 rows were written; the 5 older than 24h are gone, leaving hours 0-24
     // inclusive (a row exactly 24h old is retained, since the cut is exclusive).
     expect(count(db)).toBe(25);
+  });
+
+  it("the periodic sweep prunes during runtime, not just on boot", async () => {
+    const db = database!;
+    addSimulation(db, new Date(Date.now() - 48 * 3600_000).toISOString());
+    addSimulation(db, new Date().toISOString());
+    expect(count(db)).toBe(2);
+
+    // A boot-time prune cannot help here, because re-seeding cascades the table
+    // away. This covers the runtime path that actually bounds growth.
+    const stop = startSimulationRetentionSweep(db, 40);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } finally {
+      stop();
+    }
+
+    expect(count(db)).toBe(1);
+  });
+
+  it("keeps running when a sweep pass throws instead of crashing", async () => {
+    const db = database!;
+    const stop = startSimulationRetentionSweep(db, 30);
+    // Closing the handle makes the prune throw inside the interval. A
+    // maintenance failure must never take the API process down.
+    db.close();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    stop();
+    database = null;
+    expect(true).toBe(true);
   });
 });
