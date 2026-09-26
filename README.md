@@ -25,6 +25,11 @@ cp .env.example .env   # then fill in GEMINI_API_KEY
 npm run dev            # web on :5173, api on :8787
 ```
 
+The API reads `.env` itself (`--env-file-if-exists`), so no shell exports are
+needed. If the file is absent the API still starts and falls back to the
+deterministic advisory, which is why an unfilled `.env` looks like a working
+demo rather than a misconfiguration.
+
 Quality gates:
 
 ```bash
@@ -113,4 +118,7 @@ a prerequisite for running more than one API instance.
   for the process lifetime (terrain does not change) and forecasts for 20 minutes.
   Identical concurrent requests are collapsed into a single upstream call.
 - **Advisory narrative** — Gemini, with a deterministic local fallback that is
-  always labelled as such in the UI.
+  always labelled as such in the UI, along with the reason it was used. A live
+  Gemini analysis takes roughly 30s, and the free tier allows about 20 requests
+  per day per project, so repeated local runs will start returning HTTP 429 and
+  degrading to the fallback. That is expected, and the UI says so.
