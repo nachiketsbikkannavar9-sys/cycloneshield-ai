@@ -70,6 +70,10 @@ export type ScenarioRecord = Scenario & {
   createdAt: string;
 };
 
+/** How long recalculation history is kept. Rows older than this are pruned on
+ *  boot; nothing in the product reads historical simulations. */
+export const DEFAULT_SIMULATION_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 /**
  * A scenario row written before the column existed would otherwise fail the
  * response schema, so fall back to the seeded profile rather than 500ing.
@@ -89,7 +93,7 @@ export function getCurrentScenario(db: SqliteDatabase): ScenarioRecord | null {
   const scenarioRow = db
     .prepare(
       `SELECT id, slug, name, summary, provenance, is_synthetic, valid_from,
-        valid_to, landfall_at, created_at
+        valid_to, landfall_at, default_hazard_values, created_at
        FROM scenarios
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -207,6 +211,28 @@ export function insertSimulation(
     JSON.stringify(simulation.result),
     simulation.createdAt,
   );
+}
+
+/**
+ * Delete simulation rows older than `maxAgeMs`.
+ *
+ * Every recalculation writes a row, and the UI recalculates on a 250ms debounce
+ * while a slider is being dragged, so a single demo can add thousands of rows
+ * that are never read again. Nothing consumes historical simulations, so old
+ * rows are pruned on boot to keep the database file from growing without bound.
+ *
+ * Returns the number of rows removed.
+ */
+export function pruneOldSimulations(
+  db: SqliteDatabase,
+  maxAgeMs = DEFAULT_SIMULATION_RETENTION_MS,
+  now: Date = new Date(),
+): number {
+  const cutoff = new Date(now.getTime() - maxAgeMs).toISOString();
+  const result = db
+    .prepare("DELETE FROM simulations WHERE created_at < ?")
+    .run(cutoff);
+  return result.changes;
 }
 
 export function getSimulation(

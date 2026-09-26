@@ -16,17 +16,119 @@ export type OpenMeteoClientOptions = {
   baseUrl?: string;
   timeoutMs?: number;
   fetcher?: typeof fetch;
+  /**
+   * How long a forecast response may be reused. Defaults to FORECAST_TTL_MS
+   * (20 minutes). Set to 0 to disable forecast caching for a client.
+   */
+  forecastTtlMs?: number;
+  /**
+   * How long an elevation response may be reused. Defaults to Infinity
+   * because terrain elevation does not change. Set to 0 to disable.
+   */
+  elevationTtlMs?: number;
 };
+
+/** Forecasts are reused for 20 minutes: inside the 15-30 minute window that
+ *  keeps demo-day traffic off Open-Meteo without showing stale conditions. */
+export const FORECAST_TTL_MS = 20 * 60 * 1000;
+
+/** Terrain elevation is immutable, so it is cached for the process lifetime. */
+export const ELEVATION_TTL_MS = Number.POSITIVE_INFINITY;
+
+/**
+ * Small TTL cache with least-recently-used eviction.
+ *
+ * Entries are held as raw response text rather than parsed objects so that
+ * every caller gets its own freshly parsed value and can never mutate a
+ * cached object shared with another request.
+ */
+class TtlCache {
+  private readonly entries = new Map<string, { value: string; expiresAt: number }>();
+
+  public constructor(
+    private readonly ttlMs: number,
+    private readonly maxEntries: number,
+  ) {}
+
+  public get(key: string): string | undefined {
+    const entry = this.entries.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= Date.now()) {
+      this.entries.delete(key);
+      return undefined;
+    }
+    // Refresh recency so hot keys survive eviction.
+    this.entries.delete(key);
+    this.entries.set(key, entry);
+    return entry.value;
+  }
+
+  public set(key: string, value: string): void {
+    if (this.ttlMs <= 0) return;
+    this.entries.delete(key);
+    this.entries.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    while (this.entries.size > this.maxEntries) {
+      const oldest = this.entries.keys().next();
+      if (oldest.done) break;
+      this.entries.delete(oldest.value);
+    }
+  }
+
+  public get size(): number {
+    return this.entries.size;
+  }
+
+  public clear(): void {
+    this.entries.clear();
+  }
+}
+
+/**
+ * The weather route builds a new client per request, so the caches live at
+ * module scope to be shared across requests within a process.
+ */
+const forecastCache = new TtlCache(FORECAST_TTL_MS, 64);
+const elevationCache = new TtlCache(ELEVATION_TTL_MS, 256);
+
+/** Collapses identical concurrent requests into a single upstream call, so a
+ *  burst of judges loading the page at once triggers one request, not N. */
+const inFlight = new Map<string, Promise<string>>();
+
+const cacheStats = { forecastHits: 0, forecastMisses: 0, elevationHits: 0, elevationMisses: 0 };
+
+/** Test/demo helper: drops all cached responses and in-flight bookkeeping. */
+export function resetOpenMeteoCaches(): void {
+  forecastCache.clear();
+  elevationCache.clear();
+  inFlight.clear();
+  cacheStats.forecastHits = 0;
+  cacheStats.forecastMisses = 0;
+  cacheStats.elevationHits = 0;
+  cacheStats.elevationMisses = 0;
+}
+
+export function getOpenMeteoCacheStats() {
+  return {
+    ...cacheStats,
+    forecastEntries: forecastCache.size,
+    elevationEntries: elevationCache.size,
+    inFlight: inFlight.size,
+  };
+}
 
 export class OpenMeteoClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetcher: typeof fetch;
+  private readonly forecastTtlMs: number;
+  private readonly elevationTtlMs: number;
 
   public constructor(options: OpenMeteoClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "https://api.open-meteo.com";
     this.timeoutMs = options.timeoutMs ?? 10000;
     this.fetcher = options.fetcher ?? fetch;
+    this.forecastTtlMs = options.forecastTtlMs ?? FORECAST_TTL_MS;
+    this.elevationTtlMs = options.elevationTtlMs ?? ELEVATION_TTL_MS;
   }
 
   public async getForecast(options: OpenMeteoRequestOptions): Promise<OpenMeteoForecast> {
@@ -45,8 +147,12 @@ export class OpenMeteoClient {
     url.searchParams.set("timezone", "auto");
     url.searchParams.set("wind_speed_unit", "kmh");
 
-    const response = await this.fetchJson(url);
-    return openMeteoForecastSchema.parse(response);
+    const body = await this.fetchCached(
+      url,
+      this.forecastTtlMs > 0 ? forecastCache : null,
+      "forecast",
+    );
+    return openMeteoForecastSchema.parse(JSON.parse(body));
   }
 
   public async getElevation(
@@ -56,8 +162,12 @@ export class OpenMeteoClient {
     url.searchParams.set("latitude", String(options.latitude));
     url.searchParams.set("longitude", String(options.longitude));
 
-    const response = elevationResponseSchema.parse(await this.fetchJson(url));
-    return response.elevation;
+    const body = await this.fetchCached(
+      url,
+      this.elevationTtlMs > 0 ? elevationCache : null,
+      "elevation",
+    );
+    return elevationResponseSchema.parse(JSON.parse(body)).elevation;
   }
 
   public async checkAvailability(): Promise<boolean> {
@@ -69,7 +179,40 @@ export class OpenMeteoClient {
     }
   }
 
-  private async fetchJson(url: URL): Promise<unknown> {
+  private async fetchCached(
+    url: URL,
+    cache: TtlCache | null,
+    kind: "forecast" | "elevation",
+  ): Promise<string> {
+    const key = url.toString();
+    if (cache) {
+      const hit = cache.get(key);
+      if (hit !== undefined) {
+        if (kind === "forecast") cacheStats.forecastHits += 1;
+        else cacheStats.elevationHits += 1;
+        return hit;
+      }
+    }
+    if (kind === "forecast") cacheStats.forecastMisses += 1;
+    else cacheStats.elevationMisses += 1;
+
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+
+    const request = this.fetchText(url)
+      .then((text) => {
+        cache?.set(key, text);
+        return text;
+      })
+      .finally(() => {
+        inFlight.delete(key);
+      });
+
+    inFlight.set(key, request);
+    return request;
+  }
+
+  private async fetchText(url: URL): Promise<string> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -78,7 +221,7 @@ export class OpenMeteoClient {
       if (!response.ok) {
         throw new Error(`Open-Meteo request failed with status ${response.status}`);
       }
-      return await response.json();
+      return await response.text();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Open-Meteo request timed out after ${this.timeoutMs}ms`);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { createDatabase, type SqliteDatabase } from "../src/db/database.js";
-import { seedOdishaScenario } from "../../../database/seed/odisha-scenario.js";
+import { seedOdishaScenario, odishaScenarioId } from "../../../database/seed/odisha-scenario.js";
 import {
   getRiskCategory,
   type HazardScores,
@@ -36,6 +36,48 @@ describe("scenario dashboard route", () => {
   it("serves the seeded default hazard values", async () => {
     database = createDatabase(":memory:");
     seedOdishaScenario(database);
+
+    const response = await request(createApp(database)).get("/api/scenarios/current");
+
+    expect(response.body.scenario.defaultHazardValues).toEqual({
+      windSpeedKph: 175,
+      rainfallMm: 160,
+      surgeMeters: 1.2,
+      trackSpeedMultiplier: 1,
+      exposureMultiplier: 1,
+    });
+  });
+
+  // Regression guard: getCurrentScenario() once omitted default_hazard_values
+  // from its SELECT list, so the column was never read and parseDefaultHazardValues
+  // silently returned the seed constant instead. The test above cannot catch
+  // that, because the seeded value happens to equal that constant, so this one
+  // writes a value that DIFFERS from the seed and asserts the column wins.
+  it("serves the value stored in default_hazard_values, not the seed fallback", async () => {
+    database = createDatabase(":memory:");
+    seedOdishaScenario(database);
+    const stored = {
+      windSpeedKph: 91,
+      rainfallMm: 92,
+      surgeMeters: 0.93,
+      trackSpeedMultiplier: 1.4,
+      exposureMultiplier: 1.1,
+    };
+    database
+      .prepare("UPDATE scenarios SET default_hazard_values = ? WHERE id = ?")
+      .run(JSON.stringify(stored), odishaScenarioId);
+
+    const response = await request(createApp(database)).get("/api/scenarios/current");
+
+    expect(response.body.scenario.defaultHazardValues).toEqual(stored);
+  });
+
+  it("falls back to the seed profile when the column is empty", async () => {
+    database = createDatabase(":memory:");
+    seedOdishaScenario(database);
+    database
+      .prepare("UPDATE scenarios SET default_hazard_values = NULL WHERE id = ?")
+      .run(odishaScenarioId);
 
     const response = await request(createApp(database)).get("/api/scenarios/current");
 
