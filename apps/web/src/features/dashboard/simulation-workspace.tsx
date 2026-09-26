@@ -535,7 +535,7 @@ export function SimulationWorkspace({
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-slate-100">Simulation controls</h3>
-            <span className="text-xs text-slate-500">Changes persist as a simulation record</span>
+            <span className="text-xs text-slate-500">Changes persist for this session</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             {parameterDefinitions.map((definition) => (
