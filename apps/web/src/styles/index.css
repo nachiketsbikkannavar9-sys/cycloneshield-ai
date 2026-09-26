@@ -2,10 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens. Everything visual in the app resolves through these so the
+ * deep-navy palette, hairline borders, radii and focus treatment stay
+ * consistent. Risk severity colours deliberately live in
+ * `lib/risk-colors.ts` (the green/blue/amber/red scale) and are NOT mirrored
+ * here -- severity is data, not chrome.
+ */
 :root {
+  --surface-app: #07111f;
+  --surface-sunken: #020617;
+  --surface-card: rgb(15 23 42 / 0.72);
+  --surface-raised: rgb(2 6 23 / 0.55);
+  --surface-inset: rgb(2 6 23 / 0.4);
+
+  --hairline: rgb(148 163 184 / 0.14);
+  --hairline-strong: rgb(148 163 184 / 0.24);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+
+  --accent: #67e8f9;
+  --accent-strong: #22d3ee;
+  --accent-quiet: rgb(103 232 249 / 0.12);
+
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
+
+  --shadow-soft: 0 18px 50px -24px rgb(14 116 144 / 0.35);
+  --shadow-lift: 0 24px 60px -28px rgb(8 145 178 / 0.45);
+
+  /* Minimum comfortable touch target, applied on coarse pointers only. */
+  --tap-min: 44px;
+
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color-scheme: dark;
-  background: #020617;
+  background: var(--surface-sunken);
 }
 
 * {
@@ -15,6 +49,9 @@
 body {
   margin: 0;
   min-width: 320px;
+  background: var(--surface-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html {
@@ -25,6 +62,108 @@ html {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* A single, consistent focus treatment for every interactive element. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/*
+ * Range inputs: a larger, high-contrast thumb reads as draggable and stays
+ * hittable on touch without changing the value/label wiring.
+ */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent-strong) 0%,
+    var(--accent-strong) var(--range-progress, 50%),
+    rgb(148 163 184 / 0.22) var(--range-progress, 50%),
+    rgb(148 163 184 / 0.22) 100%
+  );
+}
+
+input[type="range"]::-moz-range-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: rgb(148 163 184 / 0.22);
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--accent-strong);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -0.3125rem;
+  height: 1.125rem;
+  width: 1.125rem;
+  border-radius: 999px;
+  border: 2px solid var(--surface-app);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(103 232 249 / 0.5), 0 6px 16px -6px rgb(34 211 238 / 0.7);
+  transition: transform 120ms ease;
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 1.125rem;
+  width: 1.125rem;
+  border-radius: 999px;
+  border: 2px solid var(--surface-app);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(103 232 249 / 0.5), 0 6px 16px -6px rgb(34 211 238 / 0.7);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.04);
+}
+
+input[type="range"]:focus-visible {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(103 232 249 / 0.45), 0 6px 16px -6px rgb(34 211 238 / 0.7);
+}
+
+input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgb(103 232 249 / 0.45), 0 6px 16px -6px rgb(34 211 238 / 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="range"]::-webkit-slider-thumb {
+    transition: none;
+  }
+}
+
+/* Coarse pointers get roomier hit areas without changing layout on desktop. */
+@media (pointer: coarse) {
+  :where(button, a[href], summary, select) {
+    min-height: var(--tap-min);
+  }
+
+  input[type="range"] {
+    /* The visible track stays 6px; this grows the tappable area around it. */
+    min-height: var(--tap-min);
   }
 }
 
@@ -64,4 +203,52 @@ html {
 
 .leaflet-tooltip-top::before {
   border-top-color: rgb(2 6 23 / 0.94);
+}
+
+/*
+ * Hero vortex. The canvas is decorative only; it sits behind the hero content
+ * and never intercepts pointer events.
+ */
+.hero-vortex {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint;
+}
+
+.hero-vortex__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Legibility scrim. The headline must stay readable at every viewport width,
+ * so the text column always sits on a slightly deepened field: a horizontal
+ * wash on wide screens, a vertical one once the layout stacks.
+ */
+.hero-vortex__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      100deg,
+      rgb(7 17 31 / 0.82) 0%,
+      rgb(7 17 31 / 0.66) 34%,
+      rgb(7 17 31 / 0.18) 62%,
+      rgb(7 17 31 / 0) 100%
+    );
+}
+
+@media (max-width: 1023px) {
+  .hero-vortex__scrim {
+    background: linear-gradient(
+      180deg,
+      rgb(7 17 31 / 0.55) 0%,
+      rgb(7 17 31 / 0.74) 40%,
+      rgb(7 17 31 / 0.86) 100%
+    );
+  }
 }

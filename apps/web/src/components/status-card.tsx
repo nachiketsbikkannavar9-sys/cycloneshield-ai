@@ -43,7 +43,7 @@ export function StatusCard({
   const colors = toneClasses[tone];
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-900/75 p-5 shadow-soft backdrop-blur">
+    <article className="rounded-card border border-hairline bg-surface-card p-5 shadow-soft backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div className={`rounded-xl p-2.5 ring-1 ${colors.icon}`}>
           <Icon size={18} strokeWidth={1.8} aria-hidden="true" />

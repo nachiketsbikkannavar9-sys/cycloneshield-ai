@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Bar,
   BarChart,
@@ -154,7 +154,7 @@ function ParameterControl({
   const Icon = definition.icon;
 
   return (
-    <label className="block rounded-xl border border-white/10 bg-slate-950/45 p-4">
+    <label className="block rounded-xl border border-hairline bg-surface-inset p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon size={15} className="text-cyan-300" aria-hidden="true" />
@@ -172,7 +172,16 @@ function ParameterControl({
         step={definition.step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-4 h-1.5 w-full cursor-pointer accent-cyan-300"
+        // Drives the filled portion of the track in index.css; the wiring
+        // (min/max/step/value/aria-label) is unchanged.
+        style={
+          {
+            "--range-progress": `${
+              ((value - definition.min) / (definition.max - definition.min)) * 100
+            }%`,
+          } as CSSProperties
+        }
+        className="mt-4 h-1.5 w-full cursor-pointer"
         aria-label={definition.label}
       />
       <div className="mt-2 flex justify-between text-[10px] text-slate-600">
@@ -469,7 +478,7 @@ export function SimulationWorkspace({
   return (
     <section
       id="simulator"
-      className="mt-6 rounded-2xl border border-cyan-300/15 bg-slate-900/70 p-5 shadow-soft sm:p-6"
+      className="mt-6 rounded-card border border-accent/15 bg-surface-card p-5 shadow-soft sm:p-6"
       data-testid="simulation-workspace"
       data-recalculating={isCalculating}
     >
@@ -508,7 +517,7 @@ export function SimulationWorkspace({
           <button
             type="button"
             onClick={() => setParameters(defaultParameters)}
-            className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-300/30 hover:text-cyan-100"
+            className="rounded-lg border border-hairline px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-300/30 hover:text-cyan-100"
           >
             Reset inputs
           </button>
@@ -540,7 +549,7 @@ export function SimulationWorkspace({
           </div>
         </div>
 
-        <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/40 p-4 sm:p-5">
+        <div className="min-w-0 rounded-card border border-hairline bg-surface-raised p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -613,10 +622,10 @@ export function SimulationWorkspace({
         )}
       </div>
 
-      <div id="infrastructure" className="mt-6 border-t border-white/10 pt-5">
+      <div id="infrastructure" className="mt-6 border-t border-hairline pt-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-violet-200">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
               <Filter size={14} aria-hidden="true" />
               Infrastructure comparison
             </div>
@@ -633,7 +642,7 @@ export function SimulationWorkspace({
             <select
               value={riskFilter}
               onChange={(event) => setRiskFilter(event.target.value as RiskFilter)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
+              className="mt-2 w-full rounded-lg border border-hairline bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
             >
               {riskFilters.map((filter) => (
                 <option key={filter.value} value={filter.value}>{filter.label}</option>
@@ -645,7 +654,7 @@ export function SimulationWorkspace({
             <select
               value={districtFilter}
               onChange={(event) => setDistrictFilter(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
+              className="mt-2 w-full rounded-lg border border-hairline bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
             >
               <option value="all">All districts</option>
               {districts.map((district) => <option key={district} value={district}>{district}</option>)}
@@ -656,7 +665,7 @@ export function SimulationWorkspace({
             <select
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
+              className="mt-2 w-full rounded-lg border border-hairline bg-slate-950/70 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-200 outline-none focus:border-cyan-300/40"
             >
               <option value="all">All asset types</option>
               {types.map((type) => <option key={type} value={type}>{titleCase(type)}</option>)}
@@ -664,7 +673,7 @@ export function SimulationWorkspace({
           </label>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <div className="mt-4 overflow-hidden rounded-xl border border-hairline">
           {filteredInfrastructure.length > 0 ? (
             <div className="divide-y divide-white/10">
               {filteredInfrastructure.map((item) => {
@@ -690,7 +699,7 @@ export function SimulationWorkspace({
                       </span>
                     </button>
                     {expanded ? (
-                      <div className="border-t border-white/10 bg-slate-950/35 px-4 py-4">
+                      <div className="border-t border-hairline bg-slate-950/35 px-4 py-4">
                         <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr]">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Score drivers</p>
@@ -704,7 +713,7 @@ export function SimulationWorkspace({
                             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Factor trace</p>
                             <div className="mt-2 space-y-2">
                               {item.factorContributions.map((factor) => (
-                                <div key={factor.factor} className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+                                <div key={factor.factor} className="rounded-lg border border-hairline bg-white/[0.02] p-2.5">
                                   <div className="flex items-center justify-between gap-3 text-xs">
                                     <span className="font-semibold text-slate-200">{factor.label}</span>
                                     <span className="font-semibold text-cyan-200">{factor.contribution.toFixed(1)} pts</span>
