@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "apps/web/dist",
+  "functions": {
+    "api/index.mjs": {
+      "maxDuration": 300,
+      "memory": 1024,
+      "includeFiles": "database/migrations/**",
+      "excludeFiles": "**/*.db"
+    }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/api/(.*)", "destination": "/api" }
+  ]
+}

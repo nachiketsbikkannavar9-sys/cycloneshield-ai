@@ -1,0 +1,46 @@
+{
+  "name": "cycloneshield-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build:shared && concurrently -n api,web -c blue,magenta \"npm run dev --workspace @cycloneshield/api\" \"npm run dev --workspace @cycloneshield/web\"",
+    "build:shared": "npm run build --workspace @cycloneshield/shared",
+    "build:api": "npm run build --workspace @cycloneshield/api",
+    "build:web": "npm run build --workspace @cycloneshield/web",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "test": "npm run build:shared && vitest run",
+    "test:watch": "npm run test:watch --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspace @cycloneshield/shared && npm run typecheck --workspace @cycloneshield/api && npm run typecheck --workspace @cycloneshield/web",
+    "lint": "npm run lint --workspace @cycloneshield/shared && npm run lint --workspace @cycloneshield/api && npm run lint --workspace @cycloneshield/web",
+    "smoke:open-meteo": "npm run smoke:open-meteo --workspace @cycloneshield/api",
+    "db:migrate": "npm run db:migrate --workspace @cycloneshield/api",
+    "db:seed": "npm run db:seed --workspace @cycloneshield/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.1",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.20.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.18",
+    "globals": "^15.15.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.7"
+  }
+}
