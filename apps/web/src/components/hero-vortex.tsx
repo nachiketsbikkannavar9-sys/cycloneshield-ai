@@ -48,6 +48,17 @@ const DEPTH_BANDS_MOBILE = 2;
 const LINE_BUDGET = { desktop: 46, tablet: 30, mobile: 12 } as const;
 
 /**
+ * Recognisability multipliers. The funnel has to read as a shape within a
+ * second or two of the hero appearing, which the previous pass did not manage:
+ * 46 streamlines at 0.10-0.21 alpha averaged out to a faint haze. Raising both
+ * the streamline count and the base alpha fixes that without altering the
+ * geometry, the depth banding, or any of the performance safeguards below.
+ * These are the knobs screenshots were used to settle.
+ */
+const DENSITY_SCALE = 1.5;
+const ALPHA_SCALE = 1.5;
+
+/**
  * Ceiling on canvas backing-store pixels. Fill rate, not line count, is what
  * costs on a high-DPR phone: a 350x804 hero at 1.75x is ~860k pixels to clear
  * and re-stroke every frame. Capping total pixels keeps per-frame cost flat
@@ -61,6 +72,18 @@ const MIN_ACCEPTABLE_FPS = 45;
 /** Consecutive bad windows required before freezing (guards against one hitch). */
 const BAD_WINDOWS_BEFORE_FREEZE = 2;
 const WINDOW_FRAMES = 60;
+
+/**
+ * Frames to let settle before the watchdog starts judging.
+ *
+ * Mount, hydration and first paint all land inside the first second or so, and
+ * those frames say nothing about whether this device can hold a smooth rate.
+ * Measuring straight away let an ordinary load hitch average under the floor
+ * twice in a row and freeze the hero for the rest of the session, which is a
+ * false positive rather than the stutter the watchdog exists to avoid. The
+ * watchdog still guards everything after the warm-up.
+ */
+const WATCHDOG_WARMUP_FRAMES = 120;
 
 type Line = {
   /** Start/end of the vertical parameter, so the funnel gets its three bands. */
@@ -106,7 +129,7 @@ function buildLines(count: number): Line[] {
       phase: (i * 2.399963) % (Math.PI * 2),
       shell: 0.58 + ((i * 37) % 43) / 100,
       // Deterministic jitter keeps the field from looking mechanically even.
-      alpha: 0.1 + ((i * 53) % 37) / 340,
+      alpha: (0.1 + ((i * 53) % 37) / 340) * ALPHA_SCALE,
       tint: ((i * 29) % 100) / 100,
     });
   }
@@ -114,9 +137,9 @@ function buildLines(count: number): Line[] {
 }
 
 function lineCountFor(width: number): number {
-  if (width < 640) return LINE_BUDGET.mobile;
-  if (width < 1024) return LINE_BUDGET.tablet;
-  return LINE_BUDGET.desktop;
+  const budget =
+    width < 640 ? LINE_BUDGET.mobile : width < 1024 ? LINE_BUDGET.tablet : LINE_BUDGET.desktop;
+  return Math.round(budget * DENSITY_SCALE);
 }
 
 /**
@@ -185,6 +208,7 @@ export function HeroVortex() {
     let windowFrames = 0;
     let windowAccum = 0;
     let badWindows = 0;
+    let warmupFrames = 0;
     let settled = false;
 
     // The funnel sits slightly right of centre on wide screens so the headline
@@ -305,8 +329,12 @@ export function HeroVortex() {
         // smooth and degrades later (throttling, background work) must still
         // fall back. Two consecutive bad windows avoid reacting to one hitch.
         if (!settled) {
-          windowFrames += 1;
-          windowAccum += delta;
+          if (warmupFrames < WATCHDOG_WARMUP_FRAMES) {
+            warmupFrames += 1;
+          } else {
+            windowFrames += 1;
+            windowAccum += delta;
+          }
           if (windowFrames >= WINDOW_FRAMES) {
             const fps = windowFrames / windowAccum;
             windowFrames = 0;
@@ -337,6 +365,12 @@ export function HeroVortex() {
       if (width === 0) resize();
       running = true;
       lastTime = 0;
+      // Coming back from a pause or a tab switch is another settling moment, so
+      // give the watchdog the same grace it gets on first paint.
+      warmupFrames = 0;
+      windowFrames = 0;
+      windowAccum = 0;
+      badWindows = 0;
       canvas.closest(".hero-vortex")?.setAttribute("data-vortex-state", "running");
       rafId = requestAnimationFrame(tick);
     };
