@@ -165,6 +165,15 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     /* The visible track stays 6px; this grows the tappable area around it. */
     min-height: var(--tap-min);
   }
+
+  /* Leaflet ships 30x30 zoom buttons, so the generic rule above only lifted
+     their height. Square them up to the same target as every other control. */
+  .leaflet-control-zoom a,
+  .leaflet-control-zoom a:hover {
+    width: var(--tap-min);
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+  }
 }
 
 .leaflet-container {
