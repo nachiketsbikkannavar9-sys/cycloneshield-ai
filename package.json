@@ -22,7 +22,8 @@
     "lint": "npm run lint --workspace @cycloneshield/shared && npm run lint --workspace @cycloneshield/api && npm run lint --workspace @cycloneshield/web",
     "smoke:open-meteo": "npm run smoke:open-meteo --workspace @cycloneshield/api",
     "db:migrate": "npm run db:migrate --workspace @cycloneshield/api",
-    "db:seed": "npm run db:seed --workspace @cycloneshield/api"
+    "db:seed": "npm run db:seed --workspace @cycloneshield/api",
+    "verify:release": "node scripts/verify/release-candidate.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.1",

@@ -39,6 +39,32 @@ npm test
 npm run build
 ```
 
+## Verifying a release candidate
+
+`npm run verify:release` exercises the production build the way a reviewer would:
+it builds, boots the API, serves `apps/web/dist` behind a small static server,
+drives it with headless Chrome at desktop and mobile viewports, asserts the
+behaviours that are easy to break, and writes the screenshots to
+`docs/screenshots/`.
+
+```bash
+npm run verify:release                       # full run, deterministic advisory
+npm run verify:release -- --no-build         # re-run against the current build
+npm run verify:release -- --live-gemini      # allow one live provider call
+npm run verify:release -- --out /tmp/shots   # write evidence elsewhere
+```
+
+It covers the hero contrast and animation safeguards (reduced motion, viewport
+pause, 45fps watchdog, mobile pixel budget), the initial map framing and that
+`Fit scenario` returns to it, seeded-scenario freshness wording, agreement between
+the coverage card and the infrastructure list, recalculation on control change,
+and the advisory's non-official framing. It exits non-zero on any failure.
+
+The run makes **no live provider calls** unless you pass `--live-gemini`; the API
+is started with an empty `GEMINI_API_KEY` so the advisory uses the deterministic
+fallback, and a check asserts that it did. The driver needs a local Chrome
+(`google-chrome`, `chromium`, or `CHROME_PATH`).
+
 ## How the risk model works
 
 `packages/shared` owns the scoring: each hazard factor is scored 0-100, banded
@@ -122,3 +148,12 @@ a prerequisite for running more than one API instance.
   Gemini analysis takes roughly 30s, and the free tier allows about 20 requests
   per day per project, so repeated local runs will start returning HTTP 429 and
   degrading to the fallback. That is expected, and the UI says so.
+
+### Illustrative asset data
+
+The seeded infrastructure carries `vulnerabilityScore` and `criticality` values
+chosen to make the demo legible, not surveyed. They are not derived from
+official Odisha asset registers, district preparedness plans, or any field
+assessment, and the seeded values are tuned so the default run shows a spread of
+risk categories across the inventory. Treat the exposure ranking as a property of
+this demo scenario, not as a statement about the real assets it names.

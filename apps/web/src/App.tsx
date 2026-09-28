@@ -343,7 +343,10 @@ export function App() {
             </div>
           </div>
 
-          <div className="rounded-card border border-hairline bg-surface-card p-6 shadow-soft">
+          <div
+            className="rounded-card border border-hairline bg-surface-card p-6 shadow-soft"
+            data-testid="coverage-snapshot"
+          >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-accent">
                 <Gauge size={17} aria-hidden="true" />
@@ -357,7 +360,7 @@ export function App() {
                 <p className="mt-1 text-xs text-slate-500">districts represented</p>
               </div>
               <div className="rounded-xl border border-hairline bg-surface-inset p-4">
-                <p className="text-2xl font-semibold text-rose-100">
+                <p className="text-2xl font-semibold text-rose-100" data-testid="coverage-elevated-assets">
                   {elevatedAssets ?? "—"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">high / critical assets</p>

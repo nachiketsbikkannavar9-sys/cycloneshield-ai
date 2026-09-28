@@ -217,7 +217,7 @@ function FactorChart({ simulation }: { simulation: SimulationResponse | null }) 
     }) ?? [];
 
   return (
-    <div className="h-[250px] w-full">
+    <div className="h-[250px] w-full" data-testid="factor-chart">
       {data.length > 0 ? (
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
@@ -641,7 +641,11 @@ export function SimulationWorkspace({
         )}
       </div>
 
-      <div id="infrastructure" className="mt-6 border-t border-hairline pt-5">
+      <div
+        id="infrastructure"
+        className="mt-6 border-t border-hairline pt-5"
+        data-testid="infrastructure-comparison"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
@@ -650,7 +654,7 @@ export function SimulationWorkspace({
             </div>
             <p className="mt-1 text-sm text-slate-500">Filter modeled assets, then open any row to trace its score.</p>
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500" data-testid="infrastructure-total">
             Showing {filteredInfrastructure.length} of {infrastructure.length} assets
           </span>
         </div>
@@ -698,7 +702,12 @@ export function SimulationWorkspace({
               {filteredInfrastructure.map((item) => {
                 const expanded = expandedAssetId === item.assetId;
                 return (
-                  <div key={item.assetId} className={selectedAssetId === item.assetId ? "bg-cyan-300/5" : ""}>
+                  <div
+                    key={item.assetId}
+                    className={selectedAssetId === item.assetId ? "bg-cyan-300/5" : ""}
+                    data-testid="infrastructure-row"
+                    data-risk-category={item.riskCategory}
+                  >
                     <button
                       type="button"
                       onClick={() => selectRiskAsset(item.assetId)}
