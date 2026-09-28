@@ -155,4 +155,41 @@ describe("scenario dashboard route", () => {
       expect(zoneBand).toBeGreaterThanOrEqual(factorBand);
     }
   });
+
+  it("keeps the factor chart multi-coloured and the asset spread differentiated at defaults", async () => {
+    // Both demo affordances depend on the seed at once, and tuning one has
+    // silently broken the other before: raising surge/rainfall to lift assets
+    // out of MODERATE pushed every factor into a single risk band, which
+    // collapsed the factor chart to one colour. This locks both together.
+    database = createDatabase(":memory:");
+    seedOdishaScenario(database);
+    const app = createApp(database);
+
+    const scenario = (
+      await request(app).get("/api/scenarios/current")
+    ).body.scenario as Scenario;
+    const simulation = await request(app).post("/api/simulations").send({
+      scenarioId: scenario.id,
+      ...scenario.defaultHazardValues,
+    });
+    const result = simulation.body.result;
+
+    const factorBands = new Set(
+      result.factorContributions.map(
+        (item: { normalizedScore: number }) => getRiskCategory(item.normalizedScore),
+      ),
+    );
+    expect(factorBands.size).toBeGreaterThanOrEqual(2);
+
+    const infrastructure = result.infrastructure as Array<{
+      riskCategory: string;
+    }>;
+    const elevated = infrastructure.filter(
+      (item) => item.riskCategory === "high" || item.riskCategory === "critical",
+    );
+    // A spread, not a uniform block in either direction.
+    expect(elevated.length).toBeGreaterThanOrEqual(2);
+    expect(elevated.length).toBeLessThan(infrastructure.length);
+    expect(new Set(infrastructure.map((item) => item.riskCategory)).size).toBeGreaterThanOrEqual(2);
+  });
 });

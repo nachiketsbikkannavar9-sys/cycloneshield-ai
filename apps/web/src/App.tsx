@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { InfrastructureRisk } from "@cycloneshield/shared";
 import {
   Activity,
   AlertTriangle,
@@ -102,6 +103,7 @@ function AppError({ message }: { message: string }) {
 export function App() {
   const { scenarioData, weatherData, error, weatherError, loading } = useDashboardData();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [infrastructure, setInfrastructure] = useState<InfrastructureRisk[] | null>(null);
   const activeSection = useActiveSection();
 
   if (loading) return <AppLoading />;
@@ -114,9 +116,17 @@ export function App() {
   const peakWind = getPeakWind(scenario.trackPoints);
   const lastTrackPoint = scenario.trackPoints[scenario.trackPoints.length - 1];
   const districts = new Set(assets.map((asset) => asset.district)).size;
-  const criticalAssets = assets.filter(
-    (asset) => asset.criticality === "critical" || asset.criticality === "high",
-  ).length;
+  // Counted from the modeled simulation result, not from the seeded
+  // `criticality` attribute. Those are different concepts: criticality is a
+  // static planning role, while the infrastructure list renders riskCategory
+  // derived from the current parameters, so counting criticality here made the
+  // snapshot disagree with the list it summarises. Null until the first
+  // simulation resolves, so no stale number is ever shown.
+  const elevatedAssets = infrastructure
+    ? infrastructure.filter(
+        (item) => item.riskCategory === "high" || item.riskCategory === "critical",
+      ).length
+    : null;
   const weatherValue = weatherData
     ? `${Math.round(weatherData.current.windKph ?? 0)} km/h`
     : "Unavailable";
@@ -300,6 +310,7 @@ export function App() {
           assets={assets}
           selectedAssetId={selectedAssetId}
           onSelectAsset={(asset) => setSelectedAssetId(asset.id)}
+          onInfrastructureChange={setInfrastructure}
         />
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -341,7 +352,9 @@ export function App() {
                 <p className="mt-1 text-xs text-slate-500">districts represented</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-slate-950/40 p-4">
-                <p className="text-2xl font-semibold text-rose-100">{criticalAssets}</p>
+                <p className="text-2xl font-semibold text-rose-100">
+                  {elevatedAssets ?? "—"}
+                </p>
                 <p className="mt-1 text-xs text-slate-500">high / critical assets</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-slate-950/40 p-4">

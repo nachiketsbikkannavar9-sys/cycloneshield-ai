@@ -142,8 +142,9 @@ export const odishaScenarioSeed = {
       capacity: 420,
       populationServed: 1950000,
       criticality: "critical",
-      vulnerabilityScore: 0.42,
-      notes: "Primary coastal referral facility in the synthetic exercise.",
+      vulnerabilityScore: 0.7,
+      notes:
+        "Primary coastal referral facility in the synthetic exercise; aged block with limited surge hardening.",
     },
     {
       id: "asset-khordha-community-health",
@@ -219,9 +220,10 @@ export const odishaScenarioSeed = {
       longitude: 85.72,
       capacity: 4,
       populationServed: 2200000,
-      criticality: "high",
-      vulnerabilityScore: 0.52,
-      notes: "Synthetic evacuation and supply corridor.",
+      criticality: "critical",
+      vulnerabilityScore: 0.72,
+      notes:
+        "Designated evacuation and supply corridor; single-lane stretch with exposed bridge approaches.",
     },
     {
       id: "asset-puri-bridge-01",
@@ -233,8 +235,9 @@ export const odishaScenarioSeed = {
       capacity: 2,
       populationServed: 850000,
       criticality: "high",
-      vulnerabilityScore: 0.67,
-      notes: "Synthetic crossing on the inland access network.",
+      vulnerabilityScore: 0.8,
+      notes:
+        "Synthetic crossing on the inland access network; narrow deck with no secondary route.",
     },
   ],
 } as const;

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import type {
   InfrastructureAsset,
+  InfrastructureRisk,
   RiskCategory,
   AnalysisResponse,
   SimulationRequest,
@@ -46,6 +47,12 @@ type SimulationWorkspaceProps = {
   assets: InfrastructureAsset[];
   selectedAssetId: string | null;
   onSelectAsset: (asset: InfrastructureAsset) => void;
+  /**
+   * Publishes the modeled per-asset risk so other surfaces (the dashboard
+   * coverage snapshot) can report the same numbers this list renders, instead
+   * of re-deriving a separate count from the seeded criticality attribute.
+   */
+  onInfrastructureChange?: (infrastructure: InfrastructureRisk[] | null) => void;
 };
 
 type SimulationParameterKey = Exclude<keyof SimulationRequest, "scenarioId">;
@@ -360,6 +367,7 @@ export function SimulationWorkspace({
   assets,
   selectedAssetId,
   onSelectAsset,
+  onInfrastructureChange,
 }: SimulationWorkspaceProps) {
   const defaultParameters = useMemo(() => getDefaultParameters(scenario), [scenario]);
   const [parameters, setParameters] = useState<SimulationRequest>(defaultParameters);
@@ -375,6 +383,14 @@ export function SimulationWorkspace({
   const [typeFilter, setTypeFilter] = useState("all");
   const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
   const analysisAbortRef = useRef<AbortController | null>(null);
+  // Held in a ref so publishing results does not become an effect dependency:
+  // an inline callback from the parent would otherwise re-run the simulation
+  // on every render.
+  const publishRef = useRef(onInfrastructureChange);
+
+  useEffect(() => {
+    publishRef.current = onInfrastructureChange;
+  });
 
   useEffect(() => {
     setParameters(defaultParameters);
@@ -395,10 +411,13 @@ export function SimulationWorkspace({
           if (cancelled) return;
           setSimulation(response);
           setLastCalculatedAt(response.createdAt);
+          publishRef.current?.(response.result.infrastructure);
         })
         .catch((reason: unknown) => {
           if (cancelled || controller.signal.aborted) return;
           setError(reason instanceof Error ? reason.message : "Simulation unavailable");
+          // Clear rather than leave the previous run's numbers on screen.
+          publishRef.current?.(null);
         })
         .finally(() => {
           if (!cancelled) setIsCalculating(false);
