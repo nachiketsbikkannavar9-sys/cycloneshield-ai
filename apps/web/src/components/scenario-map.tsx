@@ -275,6 +275,11 @@ export function ScenarioMap({
         center={ODPISHA_CENTER}
         zoom={7}
         scrollWheelZoom
+        // fitBounds rounds *down* to a whole zoom level, so an integer snap
+        // discards up to half the frame and left the initial view a zoom level
+        // too far out. A quarter-step snap lets the fit land where the data
+        // actually sits; wheel zoom stays smooth.
+        zoomSnap={0.25}
         className="h-full w-full bg-slate-950"
       >
         <TileLayer

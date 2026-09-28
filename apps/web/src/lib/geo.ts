@@ -164,8 +164,16 @@ export function getTrackFocusPoints(
 
 /**
  * Bounding box used for the initial camera position: the exposure cluster
- * (assets and full impact-zone extents) plus the near-field approach and the
- * latest track position.
+ * (assets and impact-zone centres) plus the near-field approach and the latest
+ * track position.
+ *
+ * Zone *centres* rather than full zone radii: the radii describe how far an
+ * effect reaches, not where the scenario is centred, and unioning them stretched
+ * the box far enough north-south to drop the camera two zoom levels out. The
+ * map is much wider than it is tall, so a north-south span that extra height
+ * leaves over a thousand kilometres of empty ocean and inland on screen and the
+ * Odisha coast stops reading as the subject. The zone circles are still drawn at
+ * their true radius; the frame simply leads with the places that matter.
  */
 export function getInitialViewBounds(
   scenario: Scenario,
@@ -177,7 +185,10 @@ export function getInitialViewBounds(
     bounds = unionBounds(bounds, pointBounds([point.latitude, point.longitude]));
   }
   for (const zone of scenario.impactZones) {
-    bounds = unionBounds(bounds, zoneBounds(zone));
+    bounds = unionBounds(
+      bounds,
+      pointBounds([zone.coordinates.latitude, zone.coordinates.longitude]),
+    );
   }
   for (const asset of assets) {
     bounds = unionBounds(bounds, pointBounds([asset.location.latitude, asset.location.longitude]));

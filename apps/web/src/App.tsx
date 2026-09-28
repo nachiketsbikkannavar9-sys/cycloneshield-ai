@@ -28,6 +28,7 @@ import {
   formatIstDate,
   formatIstDateTime,
   formatNumber,
+  formatSourceFreshness,
   getPeakWind,
   titleCase,
 } from "./lib/format.js";
@@ -217,7 +218,7 @@ export function App() {
               <div className="mt-7 flex flex-wrap gap-2 text-xs font-medium text-slate-300">
                 <span className="rounded-full border border-hairline bg-white/5 px-3.5 py-2">{scenario.slug}</span>
                 <span className="rounded-full border border-hairline bg-white/5 px-3.5 py-2">{assets.length} seeded assets</span>
-                <span className="rounded-full border border-hairline bg-white/5 px-3.5 py-2">Updated {formatFreshness(source.fetchedAt)}</span>
+                <span className="rounded-full border border-hairline bg-white/5 px-3.5 py-2">{formatSourceFreshness(source.kind, source.fetchedAt)}</span>
               </div>
             </div>
             <div className="rounded-card border border-amber-200/15 bg-amber-200/5 p-5">
@@ -241,7 +242,7 @@ export function App() {
           <StatusCard
             label="Scenario state"
             value="Seeded exercise"
-            detail={`${titleCase(scenario.slug)} · ${formatFreshness(source.fetchedAt)}`}
+            detail={`${titleCase(scenario.slug)} · ${formatSourceFreshness(source.kind, source.fetchedAt)}`}
             icon={Database}
             tone="amber"
             badge="Synthetic"

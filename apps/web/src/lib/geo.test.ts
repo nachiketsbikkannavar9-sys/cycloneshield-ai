@@ -103,6 +103,21 @@ describe("initial view bounds", () => {
     const compactBounds = getInitialViewBounds(compact, assets);
     expect(compactBounds?.minLatitude).toBeLessThanOrEqual(18.2);
   });
+
+  it("stays tight enough to frame the coast instead of zooming out to a region", () => {
+    // Zone radii previously inflated the north-south span to ~4.1 degrees, which
+    // forced zoom 7 and exposed >1000km of empty land and ocean either side of
+    // Odisha. The cluster itself only spans ~3.3 degrees north-south.
+    const span = (bounds?.maxLatitude ?? 0) - (bounds?.minLatitude ?? 0);
+    expect(span).toBeLessThan(3.4);
+  });
+
+  it("does not let zone radii widen the frame beyond the cluster", () => {
+    // Balasore sits at 21.1N with a radius that would reach ~22.3N.
+    expect(bounds?.maxLatitude).toBeLessThan(21.5);
+    // Kalahandi sits at 82.8E with a radius that would reach ~81.5E.
+    expect(bounds?.minLongitude).toBeGreaterThan(82.7);
+  });
 });
 
 describe("distance and bearing", () => {

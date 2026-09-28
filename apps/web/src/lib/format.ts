@@ -1,3 +1,5 @@
+import type { SourceStatus } from "@cycloneshield/shared";
+
 const istDateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   day: "2-digit",
   month: "short",
@@ -40,6 +42,23 @@ export function formatFreshness(value: string | null): string {
   if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
   return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+}
+
+/**
+ * Freshness wording for a data source.
+ *
+ * A seeded scenario's `fetchedAt` records when the row was written, not when any
+ * weather, hazard or exposure data was last updated, so a relative "5 hours ago"
+ * there implies a refresh that never happened and drifts with the wall clock.
+ * Only live sources carry a real last-fetched event, so only they get relative
+ * wording; everything else states plainly that it is static.
+ */
+export function formatSourceFreshness(
+  kind: SourceStatus["kind"],
+  fetchedAt: string | null,
+): string {
+  if (kind === "synthetic-scenario" || kind === "static") return "Seeded scenario (static)";
+  return formatFreshness(fetchedAt);
 }
 
 export function formatNumber(value: number | null): string {
