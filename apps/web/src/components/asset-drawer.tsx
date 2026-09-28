@@ -24,7 +24,7 @@ const criticalityClasses: Record<InfrastructureAsset["criticality"], string> = {
 export function AssetDrawer({ asset, onClose }: AssetDrawerProps) {
   if (!asset) {
     return (
-      <aside className="flex min-h-[420px] flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/75 p-6 shadow-soft">
+      <aside className="flex min-h-[420px] flex-col justify-between rounded-card border border-hairline bg-surface-card p-6 shadow-soft">
         <div>
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/20">
             <MapPin size={21} aria-hidden="true" />
@@ -43,7 +43,7 @@ export function AssetDrawer({ asset, onClose }: AssetDrawerProps) {
   }
 
   return (
-    <aside className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-soft">
+    <aside className="rounded-card border border-hairline bg-surface-card p-6 shadow-soft">
       <div className="flex items-start justify-between gap-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-300/10 text-cyan-200 ring-1 ring-cyan-300/20">
           <Building2 size={21} aria-hidden="true" />
@@ -62,7 +62,7 @@ export function AssetDrawer({ asset, onClose }: AssetDrawerProps) {
         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${criticalityClasses[asset.criticality]}`}>
           {asset.criticality} criticality
         </span>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+        <span className="rounded-full border border-hairline bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
           {titleCase(asset.type)}
         </span>
       </div>
@@ -75,17 +75,17 @@ export function AssetDrawer({ asset, onClose }: AssetDrawerProps) {
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+        <div className="rounded-xl border border-hairline bg-surface-raised p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Capacity</p>
           <p className="mt-1 text-lg font-semibold text-slate-100">{formatNumber(asset.capacity)}</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+        <div className="rounded-xl border border-hairline bg-surface-raised p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Population</p>
           <p className="mt-1 text-lg font-semibold text-slate-100">{formatNumber(asset.populationServed)}</p>
         </div>
       </div>
 
-      <div className="mt-6 space-y-4 border-t border-white/10 pt-5">
+      <div className="mt-6 space-y-4 border-t border-hairline pt-5">
         <div className="flex items-start gap-3">
           <ShieldAlert size={17} className="mt-0.5 shrink-0 text-amber-300" aria-hidden="true" />
           <div>
@@ -101,7 +101,7 @@ export function AssetDrawer({ asset, onClose }: AssetDrawerProps) {
           </div>
         </div>
         <div className="flex items-start gap-3">
-          <CalendarDays size={17} className="mt-0.5 shrink-0 text-violet-300" aria-hidden="true" />
+          <CalendarDays size={17} className="mt-0.5 shrink-0 text-accent" aria-hidden="true" />
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data status</p>
             <p className="mt-1 text-sm leading-6 text-slate-300">Seeded planning input · review during scenario simulation.</p>
