@@ -18,6 +18,7 @@ import {
   Wind,
 } from "lucide-react";
 import { AssetDrawer } from "./components/asset-drawer.js";
+import { ErrorBoundary } from "./components/error-boundary.js";
 import { HeroVortex } from "./components/hero-vortex.js";
 import { ScenarioMap } from "./components/scenario-map.js";
 import { StatusCard } from "./components/status-card.js";
@@ -200,7 +201,11 @@ export function App() {
           {/* Kept behind the vortex: an animated canvas underneath a blurred
               element forces the blur to re-rasterize every frame. */}
           <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border border-cyan-200/10 bg-cyan-300/5 blur-2xl" />
-          <HeroVortex />
+          {/* The vortex is decoration. If its own effects fail, the headline,
+              the scenario facts and every other section must survive. */}
+          <ErrorBoundary label="The hero animation">
+            <HeroVortex />
+          </ErrorBoundary>
           <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end xl:gap-12">
             <div>
               <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200">
@@ -297,12 +302,16 @@ export function App() {
                 {mapStatus}
               </div>
             </div>
-            <ScenarioMap
-              scenario={scenario}
-              assets={assets}
-              selectedAssetId={selectedAssetId}
-              onSelectAsset={(asset) => setSelectedAssetId(asset.id)}
-            />
+            {/* A failed map is a failed map, not a failed dashboard: the
+                simulator below it carries the actual scoring work. */}
+            <ErrorBoundary label="The scenario map">
+              <ScenarioMap
+                scenario={scenario}
+                assets={assets}
+                selectedAssetId={selectedAssetId}
+                onSelectAsset={(asset) => setSelectedAssetId(asset.id)}
+              />
+            </ErrorBoundary>
             <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-1 pt-4 text-xs text-slate-500 sm:px-3">
               <span>Map tiles © OpenStreetMap · scenario geometry is synthetic</span>
               <span className="flex items-center gap-1.5 text-emerald-300/80">

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { createGuardedFrameLoop } from "../lib/frame-loop.js";
+
 /**
  * Decorative hero backdrop: a slow cyclone funnel drawn as thin streamlines
  * on a canvas. It is a fixed particle set that is re-projected each frame
@@ -318,9 +320,7 @@ export function HeroVortex() {
       running = false;
       lastTime = 0;
     };
-
     const tick = (time: number) => {
-      rafId = requestAnimationFrame(tick);
       const delta = lastTime === 0 ? 0 : (time - lastTime) / 1000;
       lastTime = time;
       if (delta > 0) {
@@ -358,7 +358,35 @@ export function HeroVortex() {
         }
       }
       draw();
+      // Scheduled last, not first: queuing the next frame before doing the work
+      // means a throw still leaves a frame pending, which is how a dead effect
+      // can look alive. The guard also stops rescheduling after a fault.
+      loop.next();
     };
+
+    /**
+     * A throw inside this callback never reaches React, so no boundary can see
+     * it. Contain it here: stop the loop, repaint a clean still frame, and tell
+     * the console. The effect is decoration, so a static funnel is a fine
+     * resting state, and it is far better than a torn one.
+     */
+    const loop = createGuardedFrameLoop(tick, {
+      schedule: (callback) => {
+        rafId = requestAnimationFrame(callback);
+      },
+      onFault: (error) => {
+        running = false;
+        lastTime = 0;
+        try {
+          draw();
+        } catch {
+          // If even the repaint throws, whatever is already on the canvas is
+          // what the user sees. Nothing further to do here.
+        }
+        canvas.closest(".hero-vortex")?.setAttribute("data-vortex-state", "static-fallback");
+        console.error("[hero-vortex] animation loop failed, holding a static frame", error);
+      },
+    });
 
     const start = () => {
       if (running || reducedMotion || !visible || document.hidden) return;
@@ -372,7 +400,7 @@ export function HeroVortex() {
       windowAccum = 0;
       badWindows = 0;
       canvas.closest(".hero-vortex")?.setAttribute("data-vortex-state", "running");
-      rafId = requestAnimationFrame(tick);
+      loop.next();
     };
 
     const syncMotion = () => {
