@@ -31,7 +31,7 @@ export function createWeatherRouter(): Router {
       });
 
       try {
-        const [forecast, elevation] = await Promise.all([
+        const [forecastResult, elevation] = await Promise.all([
           client.getForecast({
             latitude: query.data.latitude,
             longitude: query.data.longitude,
@@ -47,10 +47,14 @@ export function createWeatherRouter(): Router {
           label: "Open-Meteo",
           kind: "live-weather-and-elevation",
           status: "live",
-          fetchedAt: new Date().toISOString(),
+          // The upstream call time, carried through the cache rather than
+          // stamped here. A cached read must not claim to have fetched now.
+          fetchedAt: forecastResult.fetchedAt,
           detail:
             "Live forecast and elevation only; no cyclone track, storm surge, or official warning data.",
         };
+        const { forecast } = forecastResult;
+
         // Resolved per request, never when the cache entry was created: the
         // forecast body is cached for 20 minutes, and "now" has to keep moving
         // while it sits there.

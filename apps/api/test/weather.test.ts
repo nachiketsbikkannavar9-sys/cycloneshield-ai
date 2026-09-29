@@ -224,4 +224,46 @@ describe("current weather route", () => {
       vi.useRealTimers();
     }
   });
+
+  it("reports the upstream fetch time, not the read time, on a cache hit", async () => {
+    vi.useFakeTimers();
+    try {
+      // 13:50 IST. Cold read: the upstream call happens now.
+      vi.setSystemTime(new Date("2026-09-28T08:20:00.000Z"));
+      const fetcher = stubWeather();
+      database = createDatabase(":memory:");
+      const app = createApp(database);
+      const url = "/api/weather/current?latitude=20.2961&longitude=85.8245";
+
+      const cold = await request(app).get(url);
+      expect(cold.status).toBe(200);
+      expect(cold.body.source.fetchedAt).toBe("2026-09-28T08:20:00.000Z");
+
+      // 14:05 IST, 15 minutes later and still well inside the 20 minute TTL,
+      // so this read is served from cache and triggers no upstream call.
+      vi.setSystemTime(new Date("2026-09-28T08:35:00.000Z"));
+      const warm = await request(app).get(url);
+      expect(warm.status).toBe(200);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+
+      // The body is 15 minutes old, and the timestamp has to say so. Stamping
+      // the read time here would tell a viewer the reading was fetched seconds
+      // ago when it is a quarter of an hour old, which is the exact lie the
+      // card's "fetched" wording must not tell.
+      expect(warm.body.source.fetchedAt).toBe("2026-09-28T08:20:00.000Z");
+      expect(warm.body.source.fetchedAt).not.toBe("2026-09-28T08:35:00.000Z");
+
+      // Only the hour moves on a cached read; the fetch time is pinned.
+      expect(warm.body.current.time).toBe("2026-09-28T14:00");
+
+      // Past the TTL the entry is refetched and the timestamp advances, so a
+      // reader is never shown a permanently frozen fetch time.
+      vi.setSystemTime(new Date("2026-09-28T08:41:00.000Z"));
+      const refetched = await request(app).get(url);
+      expect(refetched.status).toBe(200);
+      expect(refetched.body.source.fetchedAt).toBe("2026-09-28T08:41:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

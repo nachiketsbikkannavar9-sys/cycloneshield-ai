@@ -34,6 +34,21 @@ export const weatherSnapshotSchema = z.object({
   forecast: hourlyWeatherSchema,
 });
 
+/**
+ * A parsed forecast plus the moment Open-Meteo was actually called.
+ *
+ * This is deliberately separate from `openMeteoForecastSchema`, which mirrors
+ * the upstream body field for field. The body is cached for 20 minutes, so the
+ * time it was fetched cannot be recovered from the body at read time and has to
+ * travel alongside it.
+ */
+export const openMeteoForecastResultSchema = z.object({
+  forecast: openMeteoForecastSchema,
+  /** ISO timestamp of the upstream call that produced `forecast`. */
+  fetchedAt: z.string(),
+});
+
 export type HourlyWeather = z.infer<typeof hourlyWeatherSchema>;
 export type OpenMeteoForecast = z.infer<typeof openMeteoForecastSchema>;
+export type OpenMeteoForecastResult = z.infer<typeof openMeteoForecastResultSchema>;
 export type WeatherSnapshot = z.infer<typeof weatherSnapshotSchema>;

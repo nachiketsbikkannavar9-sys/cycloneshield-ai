@@ -4,10 +4,11 @@ const client = new OpenMeteoClient({ timeoutMs: 15000 });
 const location = { latitude: 20.2961, longitude: 85.8245 };
 
 try {
-  const [forecast, elevation] = await Promise.all([
+  const [result, elevation] = await Promise.all([
     client.getForecast({ ...location, forecastDays: 1 }),
     client.getElevation(location),
   ]);
+  const { forecast, fetchedAt } = result;
 
   console.log(
     JSON.stringify({
@@ -17,6 +18,7 @@ try {
       timezone: forecast.timezone,
       elevationMeters: elevation[0] ?? null,
       firstHour: forecast.hourly.time[0] ?? null,
+      fetchedAt,
     }),
   );
 } catch (error) {

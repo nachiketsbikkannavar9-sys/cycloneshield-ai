@@ -35,7 +35,7 @@ describe("OpenMeteoClient", () => {
     });
     const client = new OpenMeteoClient({ baseUrl: "https://example.test", fetcher });
 
-    const forecast = await client.getForecast({
+    const { forecast, fetchedAt } = await client.getForecast({
       latitude: 20.2961,
       longitude: 85.8245,
       forecastDays: 1,
@@ -43,6 +43,9 @@ describe("OpenMeteoClient", () => {
 
     expect(forecast.elevation).toBe(10);
     expect(forecast.hourly.wind_gusts_10m[0]).toBe(31.2);
+    // The forecast ships with the moment the upstream call happened, so a later
+    // cached read can report it without mistaking the read for the fetch.
+    expect(Number.isNaN(Date.parse(fetchedAt))).toBe(false);
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
