@@ -18,7 +18,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function stubWeather() {
+function stubWeather(options: { upstreamLatencyMs?: number } = {}) {
   const fetcher = vi.fn<typeof fetch>(async (input) => {
     const url = new URL(String(input));
     if (url.pathname === "/v1/elevation") {
@@ -26,6 +26,12 @@ function stubWeather() {
         status: 200,
         headers: { "content-type": "application/json" },
       });
+    }
+    // Pretend the upstream call was slow: the clock moves on while it is in
+    // flight, which is exactly the condition under which a fetch timestamp
+    // taken on completion drifts from one taken on dispatch.
+    if (options.upstreamLatencyMs) {
+      vi.setSystemTime(new Date(Date.now() + options.upstreamLatencyMs));
     }
     return weatherResponse();
   });
@@ -228,15 +234,18 @@ describe("current weather route", () => {
   it("reports the upstream fetch time, not the read time, on a cache hit", async () => {
     vi.useFakeTimers();
     try {
-      // 13:50 IST. Cold read: the upstream call happens now.
+      // 13:50 IST. Cold read: the upstream call happens now. It is given a slow
+      // response so the clock advances while the call is in flight.
       vi.setSystemTime(new Date("2026-09-28T08:20:00.000Z"));
-      const fetcher = stubWeather();
+      const fetcher = stubWeather({ upstreamLatencyMs: 9_000 });
       database = createDatabase(":memory:");
       const app = createApp(database);
       const url = "/api/weather/current?latitude=20.2961&longitude=85.8245";
 
       const cold = await request(app).get(url);
       expect(cold.status).toBe(200);
+      // Dispatch time, not completion time: the call left at 08:20 and came
+      // back at 08:20:09, and it was fetched when it left.
       expect(cold.body.source.fetchedAt).toBe("2026-09-28T08:20:00.000Z");
 
       // 14:05 IST, 15 minutes later and still well inside the 20 minute TTL,
@@ -252,6 +261,12 @@ describe("current weather route", () => {
       // card's "fetched" wording must not tell.
       expect(warm.body.source.fetchedAt).toBe("2026-09-28T08:20:00.000Z");
       expect(warm.body.source.fetchedAt).not.toBe("2026-09-28T08:35:00.000Z");
+
+      // The cold read and the warm read describe one and the same upstream
+      // call, so they have to report the same instant to the millisecond. If
+      // the cache entry re-read the clock on completion, a slow upstream call
+      // would make these drift apart by its own latency.
+      expect(warm.body.source.fetchedAt).toBe(cold.body.source.fetchedAt);
 
       // Only the hour moves on a cached read; the fetch time is pinned.
       expect(warm.body.current.time).toBe("2026-09-28T14:00");

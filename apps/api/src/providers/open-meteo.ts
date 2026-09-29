@@ -74,13 +74,17 @@ class TtlCache {
     return entry;
   }
 
-  public set(key: string, value: string): void {
+  public set(key: string, value: string, fetchedAt: string): void {
     if (this.ttlMs <= 0) return;
     const now = Date.now();
     this.entries.delete(key);
     this.entries.set(key, {
       value,
-      fetchedAt: new Date(now).toISOString(),
+      // Taken from the caller rather than read here, so the response that
+      // triggered this fetch and every later cached read report one identical
+      // time. Re-reading the clock on completion would let a slow upstream
+      // call make the cold read disagree with the warm ones by its own latency.
+      fetchedAt,
       expiresAt: now + this.ttlMs,
     });
     while (this.entries.size > this.maxEntries) {
@@ -263,7 +267,7 @@ export class OpenMeteoClient {
     const requestedAt = new Date().toISOString();
     const request = this.fetchText(url)
       .then((text) => {
-        cache?.set(key, text);
+        cache?.set(key, text, requestedAt);
         return { body: text, fetchedAt: requestedAt };
       })
       .finally(() => {
