@@ -36,6 +36,7 @@ import {
   pathPointAtRatio,
   type LatLngTuple,
 } from "../lib/geo.js";
+import { createTileHealthMonitor } from "../lib/tile-health.js";
 import {
   criticalityRiskCategory,
   riskCategoryColors,
@@ -196,8 +197,26 @@ export function ScenarioMap({
     impactZones: true,
     assets: true,
   });
-  const [mapError, setMapError] = useState(false);
+  const [tilesDegraded, setTilesDegraded] = useState(false);
+  // Leaflet fires tileerror from inside its own handlers, so the counting rules
+  // live in a monitor held in a ref rather than in effect-driven state.
+  const tileHealthRef = useRef<ReturnType<typeof createTileHealthMonitor> | null>(null);
+  if (tileHealthRef.current === null) {
+    tileHealthRef.current = createTileHealthMonitor();
+  }
   const fitScenarioRef = useRef<() => void>(() => {});
+
+  const handleTileError = useCallback(() => {
+    setTilesDegraded(tileHealthRef.current!.recordError());
+  }, []);
+
+  const handleTileLoad = useCallback(() => {
+    setTilesDegraded(tileHealthRef.current!.recordSuccess());
+  }, []);
+
+  const dismissTileNotice = useCallback(() => {
+    setTilesDegraded(tileHealthRef.current!.dismiss());
+  }, []);
 
   const registerFit = useCallback((fit: () => void) => {
     fitScenarioRef.current = fit;
@@ -253,22 +272,23 @@ export function ScenarioMap({
 
   return (
     <div className="relative h-[560px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:h-[650px]">
-      {mapError ? (
-        <div className="absolute inset-0 z-[500] grid place-items-center bg-slate-950/95 p-8 text-center">
-          <div>
-            <MapPinned className="mx-auto text-cyan-300" size={32} />
-            <p className="mt-3 font-semibold text-slate-100">Map tiles are unavailable</p>
-            <p className="mt-1 max-w-xs text-sm text-slate-400">
-              The scenario layers remain available when a tile connection returns.
-            </p>
-            <button
-              type="button"
-              onClick={() => setMapError(false)}
-              className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5"
-            >
-              Retry map
-            </button>
-          </div>
+      {/*
+        A base-tile failure must not take the map with it. The track, impact
+        zones and asset markers are vector overlays drawn on the same container,
+        so they stay legible and pannable on a blank background; the only thing
+        lost is the photographic context. That is a notice, not a takeover.
+      */}
+      {tilesDegraded ? (
+        <div
+          role="status"
+          data-testid="map-tile-notice"
+          className="pointer-events-none absolute bottom-4 left-4 z-[500] flex max-w-[min(20rem,calc(100%-2rem))] items-start gap-2 rounded-lg border border-amber-400/30 bg-slate-950/90 px-3 py-2 text-xs text-amber-100 shadow-soft backdrop-blur"
+        >
+          <MapPinned className="mt-0.5 shrink-0 text-amber-300" size={14} aria-hidden="true" />
+          <p>
+            Some map tiles failed to load. Storm track, impact zones and asset markers are
+            unaffected.
+          </p>
         </div>
       ) : null}
       <MapContainer
@@ -285,7 +305,7 @@ export function ScenarioMap({
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          eventHandlers={{ tileerror: () => setMapError(true) }}
+          eventHandlers={{ tileerror: handleTileError, tileload: handleTileLoad }}
         />
         <FitScenario bounds={initialBounds} register={registerFit} />
 
@@ -460,8 +480,8 @@ export function ScenarioMap({
       <button
         type="button"
         aria-label="Close map notice"
-        onClick={() => setMapError(false)}
-        className={`absolute right-4 top-4 z-[501] rounded-lg bg-slate-950/80 p-1 text-slate-400 hover:text-slate-100 ${mapError ? "block" : "hidden"}`}
+        onClick={dismissTileNotice}
+        className={`absolute right-4 top-4 z-[501] rounded-lg bg-slate-950/80 p-1 text-slate-400 hover:text-slate-100 ${tilesDegraded ? "block" : "hidden"}`}
       >
         <X size={16} aria-hidden="true" />
       </button>
