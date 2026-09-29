@@ -6,7 +6,7 @@ import {
 } from "@cycloneshield/shared";
 import { asyncHandler } from "../http/async-handler.js";
 import { config } from "../config/env.js";
-import { OpenMeteoClient } from "../providers/open-meteo.js";
+import { OpenMeteoClient, selectCurrentHourIndex } from "../providers/open-meteo.js";
 
 const weatherQuerySchema = z.object({
   latitude: z.coerce.number().min(-90).max(90).default(20.2961),
@@ -51,13 +51,29 @@ export function createWeatherRouter(): Router {
           detail:
             "Live forecast and elevation only; no cyclone track, storm surge, or official warning data.",
         };
-        const firstIndex = 0;
-        const hourlyPreview = forecast.hourly.time.slice(0, 6).map((time, index) => ({
-          time,
-          temperatureC: forecast.hourly.temperature_2m[index] ?? null,
-          windKph: forecast.hourly.wind_speed_10m[index] ?? null,
-          precipitationMm: forecast.hourly.precipitation[index] ?? null,
-        }));
+        // Resolved per request, never when the cache entry was created: the
+        // forecast body is cached for 20 minutes, and "now" has to keep moving
+        // while it sits there.
+        const currentIndex = selectCurrentHourIndex(
+          forecast.hourly.time,
+          forecast.utc_offset_seconds,
+        );
+        const at = (series: readonly (number | null)[]): number | null =>
+          currentIndex >= 0 ? (series[currentIndex] ?? null) : null;
+        const currentTime = currentIndex >= 0 ? forecast.hourly.time[currentIndex] : null;
+
+        // The preview leads with the current hour rather than midnight, so the
+        // first row is the same observation the card above is showing.
+        const previewStart = currentIndex >= 0 ? currentIndex : 0;
+        const hourlyPreview = forecast.hourly.time.slice(previewStart, previewStart + 6).map((time, offset) => {
+          const index = previewStart + offset;
+          return {
+            time,
+            temperatureC: forecast.hourly.temperature_2m[index] ?? null,
+            windKph: forecast.hourly.wind_speed_10m[index] ?? null,
+            precipitationMm: forecast.hourly.precipitation[index] ?? null,
+          };
+        });
 
         const payload = currentWeatherResponseSchema.parse({
           source,
@@ -66,14 +82,16 @@ export function createWeatherRouter(): Router {
             longitude: query.data.longitude,
           },
           timezone: forecast.timezone,
+          timezoneAbbreviation: forecast.timezone_abbreviation,
+          utcOffsetSeconds: forecast.utc_offset_seconds,
           elevationMeters: elevation[0] ?? null,
           current: {
-            time: forecast.hourly.time[firstIndex] ?? null,
-            temperatureC: forecast.hourly.temperature_2m[firstIndex] ?? null,
-            windKph: forecast.hourly.wind_speed_10m[firstIndex] ?? null,
-            windGustKph: forecast.hourly.wind_gusts_10m[firstIndex] ?? null,
-            precipitationMm: forecast.hourly.precipitation[firstIndex] ?? null,
-            windDirectionDeg: forecast.hourly.wind_direction_10m[firstIndex] ?? null,
+            time: currentTime,
+            temperatureC: at(forecast.hourly.temperature_2m),
+            windKph: at(forecast.hourly.wind_speed_10m),
+            windGustKph: at(forecast.hourly.wind_gusts_10m),
+            precipitationMm: at(forecast.hourly.precipitation),
+            windDirectionDeg: at(forecast.hourly.wind_direction_10m),
           },
           hourlyPreview,
         });

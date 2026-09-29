@@ -16,6 +16,12 @@ export const openMeteoForecastSchema = z.object({
   longitude: z.number(),
   timezone: z.string(),
   timezone_abbreviation: z.string(),
+  /**
+   * Seconds to add to UTC to get the wall clock in `timezone`. This is the only
+   * reliable way to find "now" in the hourly series: the arrays are in local
+   * time, so matching a UTC prefix would land on the wrong hour.
+   */
+  utc_offset_seconds: z.number(),
   elevation: z.number(),
   hourly: hourlyWeatherSchema,
 });

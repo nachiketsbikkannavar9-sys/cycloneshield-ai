@@ -24,11 +24,11 @@ import { StatusCard } from "./components/status-card.js";
 import { useDashboardData } from "./features/dashboard/use-dashboard-data.js";
 import { SimulationWorkspace } from "./features/dashboard/simulation-workspace.js";
 import {
-  formatFreshness,
   formatIstDate,
   formatIstDateTime,
   formatNumber,
   formatSourceFreshness,
+  formatWeatherProvenance,
   getPeakWind,
   titleCase,
 } from "./lib/format.js";
@@ -133,7 +133,10 @@ export function App() {
     ? `${Math.round(weatherData.current.windKph ?? 0)} km/h`
     : "Unavailable";
   const weatherDetail = weatherData
-    ? `${weatherData.source.label} · ${formatFreshness(weatherData.source.fetchedAt)}`
+    ? `${weatherData.source.label} · ${formatWeatherProvenance({
+        observationTime: weatherData.current.time,
+        fetchedAt: weatherData.source.fetchedAt,
+      })}`
     : weatherError ?? "Live context unavailable";
   const mapStatus = weatherData ? "Live context attached" : "Scenario map active";
 
@@ -263,14 +266,16 @@ export function App() {
             tone="cyan"
             badge="Synthetic"
           />
-          <StatusCard
-            label="Live context"
-            value={weatherValue}
-            detail={weatherDetail}
-            icon={CloudSun}
-            tone={weatherData ? "emerald" : "amber"}
-            badge={weatherData ? "Open-Meteo" : "Fallback"}
-          />
+          <div data-testid="live-context-card">
+            <StatusCard
+              label="Live context"
+              value={weatherValue}
+              detail={weatherDetail}
+              icon={CloudSun}
+              tone={weatherData ? "emerald" : "amber"}
+              badge={weatherData ? "Open-Meteo" : "Fallback"}
+            />
+          </div>
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">

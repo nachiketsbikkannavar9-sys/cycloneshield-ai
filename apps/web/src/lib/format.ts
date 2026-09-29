@@ -44,6 +44,44 @@ export function formatFreshness(value: string | null): string {
   return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
 }
 
+const clockFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * Provenance line for the live weather card: when the reading is from, and when
+ * we fetched it.
+ *
+ * A relative label is the wrong tool here. The forecast is cached for 20
+ * minutes, so "just now" would claim an observation up to 20 minutes old is
+ * live, and "5 min ago" describes the cache rather than the weather. The two
+ * clocks are different things and the card now shows both.
+ *
+ * `observationTime` is a naive local timestamp from the provider, so it is read
+ * as a wall clock directly. `fetchedAt` is a real instant and is converted into
+ * the same zone.
+ */
+export function formatWeatherProvenance(input: {
+  observationTime: string | null;
+  fetchedAt: string | null;
+}): string {
+  const { observationTime, fetchedAt } = input;
+  if (!observationTime || !fetchedAt) return "Live context unavailable";
+
+  // "2026-09-28T13:00" -> "13:00". Guard the shape so a malformed value cannot
+  // render as NaN:NaN in the card.
+  const observationClock = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(observationTime);
+  if (!observationClock) return "Live context unavailable";
+  const observation = `${observationClock[2]} IST`;
+
+  const fetched = new Date(fetchedAt);
+  if (Number.isNaN(fetched.getTime())) return observation;
+  return `${observation} · fetched ${clockFormatter.format(fetched)}`;
+}
+
 /**
  * Freshness wording for a data source.
  *

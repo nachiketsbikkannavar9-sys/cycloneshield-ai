@@ -94,6 +94,39 @@ const elevationCache = new TtlCache(ELEVATION_TTL_MS, 256);
  *  burst of judges loading the page at once triggers one request, not N. */
 const inFlight = new Map<string, Promise<string>>();
 
+/**
+ * Index of the hourly entry that is "now" for this forecast.
+ *
+ * Open-Meteo returns `hourly.time` as naive local timestamps (no offset), so
+ * the only way to line them up with the current moment is to shift `now` by the
+ * response's own `utc_offset_seconds` and compare local wall clocks. Comparing
+ * against a UTC ISO prefix instead would land six hours off for Asia/Kolkata,
+ * which is the difference between "current wind" and a stale morning reading.
+ *
+ * Returns the last entry at or before now, so a partially elapsed hour still
+ * reports the most recent completed observation, and clamps to the available
+ * range rather than returning undefined.
+ */
+export function selectCurrentHourIndex(
+  hourlyTimes: readonly string[],
+  utcOffsetSeconds: number,
+  now: Date = new Date(),
+): number {
+  if (hourlyTimes.length === 0) return -1;
+  // Shifting the instant is enough; the series itself is already local.
+  const localHourKey = new Date(now.getTime() + utcOffsetSeconds * 1000)
+    .toISOString()
+    .slice(0, 13);
+  let index = 0;
+  for (let i = 0; i < hourlyTimes.length; i += 1) {
+    // ISO-8601 without an offset sorts lexicographically, so this is a
+    // chronological comparison rather than an approximate one.
+    if (hourlyTimes[i].slice(0, 13) <= localHourKey) index = i;
+    else break;
+  }
+  return index;
+}
+
 const cacheStats = { forecastHits: 0, forecastMisses: 0, elevationHits: 0, elevationMisses: 0 };
 
 /** Test/demo helper: drops all cached responses and in-flight bookkeeping. */

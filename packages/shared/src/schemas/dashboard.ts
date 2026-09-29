@@ -22,8 +22,13 @@ export const currentWeatherResponseSchema = z.object({
   source: sourceStatusSchema,
   location: coordinatesSchema,
   timezone: z.string(),
+  /** Short zone label for the "Live context" card, e.g. "IST". */
+  timezoneAbbreviation: z.string(),
+  /** Seconds to add to UTC for the hourly series' local wall clock. */
+  utcOffsetSeconds: z.number(),
   elevationMeters: z.number().nullable(),
   current: z.object({
+    /** Local wall-clock timestamp of the observation being reported. */
     time: z.string().nullable(),
     temperatureC: z.number().nullable(),
     windKph: z.number().nullable(),

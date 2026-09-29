@@ -20,6 +20,7 @@ describe("OpenMeteoClient", () => {
         longitude: 85.8245,
         timezone: "Asia/Kolkata",
         timezone_abbreviation: "IST",
+        utc_offset_seconds: 19_800,
         elevation: 10,
         hourly: {
           time: ["2026-09-25T00:00"],
