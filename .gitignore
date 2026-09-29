@@ -11,3 +11,14 @@ coverage/
 .DS_Store
 .vercel
 .env*.local
+
+# Screen recordings are review artefacts, not source. A walkthrough is ~12MB of
+# binary that nobody reviews in a diff, and it churns on every retake. Host the
+# demo video (YouTube unlisted or Drive) and link it from the README instead.
+*.mp4
+cycloneshield-demo.mp4
+
+# Where verify:release writes any recording it makes. Gitignored explicitly so
+# a new capture can never be committed by accident.
+artifacts/
+recordings/

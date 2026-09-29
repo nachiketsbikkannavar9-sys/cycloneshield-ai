@@ -8,6 +8,8 @@ simulation in the browser, and produces Gemini-backed advisory narrative.
 The scenario is **synthetic** and exists for demonstration. It is not an observed
 or forecast cyclone, and the advisory output is explicitly labelled as simulated.
 
+Demo video: <link to be added>
+
 ## Stack
 
 | Layer | Choice |
