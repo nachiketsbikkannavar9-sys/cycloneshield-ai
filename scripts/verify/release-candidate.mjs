@@ -468,11 +468,14 @@ async function desktopSuite(url) {
       const rows = [...document.querySelectorAll('[data-testid="infrastructure-row"]')];
       const total = document.querySelector('[data-testid="infrastructure-total"]');
       const elevated = rows.filter(r => /^(high|critical)$/.test(r.dataset.riskCategory || '')).length;
+      const byCategory = (name) => rows.filter(r => (r.dataset.riskCategory || '') === name).length;
       return {
         cardText: card ? card.textContent.trim() : null,
         card: card && /\\d/.test(card.textContent) ? Number(card.textContent.trim()) : null,
         rows: rows.length,
         elevated,
+        high: byCategory('high'),
+        critical: byCategory('critical'),
         totalLabel: total ? total.textContent.replace(/\\s+/g, ' ').trim() : null,
       };`);
 
@@ -496,6 +499,11 @@ async function desktopSuite(url) {
     check("dashboard", "coverage count agrees with the infrastructure list",
       coverage.card !== null && coverage.card === coverage.elevated && coverage.rows > 0,
       `card=${coverage.card} high+critical rows=${coverage.elevated} of ${coverage.rows} rendered`);
+    // Pinned to 3 rather than "> 0": the seeded scenario is retuned so exactly
+    // three assets are HIGH, and a snapshot that drifts is the bug this check
+    // exists to catch, not something to relax away.
+    check("dashboard", "seeded scenario yields exactly 3 HIGH assets", coverage.high === 3,
+      `high=${coverage.high} critical=${coverage.critical}`);
 
     const categories = await session.evaluate(`
       return [...new Set([...document.querySelectorAll('[data-testid="infrastructure-row"]')]
@@ -595,7 +603,10 @@ async function mobileSuite(url) {
       return { bars: bars.length, fills, labels };`);
     check("simulator", "factor chart renders one bar per factor", factors.bars >= 3,
       `bars=${factors.bars} labels=${JSON.stringify(factors.labels)}`);
-    check("simulator", "factor chart uses more than one colour", factors.fills.length >= 2,
+    // Three risk tiers, three colours. A chart that collapses to one colour
+    // still "passes a more-than-one-colour" test while telling a reviewer
+    // nothing, so the count is pinned to the design.
+    check("simulator", "factor chart uses the 3 risk-tier colours", factors.fills.length === 3,
       `fills=${JSON.stringify(factors.fills)}`);
 
     // Changing a control must actually re-run the model, not just repaint.
@@ -686,6 +697,151 @@ async function mobileSuite(url) {
  * (must stay silent), then a sustained outage (must notice without hiding the
  * overlays), then recovery (must clear the notice).
  */
+/**
+ * The six widths a reviewer's browser actually lands on.
+ *
+ * The desktop and mobile suites each check one width in depth; this one exists
+ * because the widths in between are where layout bugs hide. A panel that only
+ * overflows between 768 and 1024, or a hero that gets clipped at 360, passes
+ * both end-of-range suites comfortably.
+ */
+const RESPONSIVE_WIDTHS = [
+  { width: 360, height: 780, label: "small phone" },
+  { width: 390, height: 844, label: "phone" },
+  { width: 768, height: 1024, label: "tablet portrait" },
+  { width: 1024, height: 768, label: "tablet landscape" },
+  { width: 1440, height: 900, label: "laptop" },
+  { width: 1920, height: 1080, label: "desktop" },
+];
+
+async function responsiveSuite(url) {
+  console.log("\nResponsive sweep");
+  for (const { width, height, label } of RESPONSIVE_WIDTHS) {
+    const session = await launchChrome({ width: Math.max(width, 500), height, port: HEADLESS_CHROME_PORT + 2 });
+    const consoleErrors = [];
+    session.on((message) => {
+      if (message.method === "Runtime.consoleAPICalled" && message.params?.type === "error") {
+        consoleErrors.push(message.params.args?.map((a) => a.value ?? a.description).join(" "));
+      }
+    });
+    try {
+      await session.send("Runtime.enable");
+      await session.send("Page.enable");
+      await session.setDevice({ width, height, deviceScaleFactor: 1, mobile: width < 768 });
+      await session.navigate(url);
+      await settle(session, '[data-testid="hero-vortex-canvas"]');
+      // Let the map tiles and the weather request resolve; both are async and
+      // both are sources of late console errors.
+      await sleep(2500);
+
+      const probe = await session.evaluate(`
+        const doc = document.documentElement;
+        const vortex = document.querySelector('[data-testid="hero-vortex-canvas"]');
+        const headline = document.querySelector('h1');
+        const heroRect = vortex ? vortex.getBoundingClientRect() : null;
+        const headRect = headline ? headline.getBoundingClientRect() : null;
+        // Widest element that pokes past the viewport, to name the culprit
+        // rather than just reporting a boolean.
+        let worst = null;
+        for (const el of document.querySelectorAll('body *')) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          const over = Math.round(r.right - window.innerWidth);
+          if (over > 1 && (!worst || over > worst.over)) {
+            worst = { over, tag: el.tagName.toLowerCase(), cls: (el.className || '').toString().slice(0, 40) };
+          }
+        }
+        return {
+          innerWidth: window.innerWidth,
+          scrollWidth: doc.scrollWidth,
+          overflow: doc.scrollWidth > window.innerWidth + 1,
+          worst,
+          vortexVisible: Boolean(heroRect) && heroRect.width > 0 && heroRect.height > 0,
+          // A headline clipped by the viewport reads as a rendering bug even
+          // when nothing overflows, so measure the text box itself.
+          headlineFound: Boolean(headRect),
+          headlineFullyVisible: Boolean(headRect) && headRect.left >= -1 && headRect.right <= window.innerWidth + 1,
+          headlineBox: headRect ? Math.round(headRect.left) + '..' + Math.round(headRect.right) : null,
+          heroHeight: heroRect ? Math.round(heroRect.height) : 0,
+        };`);
+
+      check("responsive", `${width}px (${label}) has no horizontal overflow`, !probe.overflow,
+        probe.overflow
+          ? `scrollWidth=${probe.scrollWidth} innerWidth=${probe.innerWidth} widest=${probe.worst ? `${probe.worst.tag}.${probe.worst.cls} +${probe.worst.over}px` : "?"}`
+          : `innerWidth=${probe.innerWidth}`);
+      check("responsive", `${width}px (${label}) renders the hero`, probe.vortexVisible,
+        `height=${probe.heroHeight}px`);
+      check("responsive", `${width}px (${label}) keeps the headline inside the viewport`,
+        probe.headlineFullyVisible, probe.headlineFound
+          ? `h1 spans ${probe.headlineBox} of 0..${probe.innerWidth}`
+          : "no h1 found on the page");
+      check("responsive", `${width}px (${label}) logs no console errors`, consoleErrors.length === 0,
+        consoleErrors.length ? consoleErrors.slice(0, 3).join(" | ") : "none");
+    } finally {
+      await session.close().catch(() => {});
+    }
+  }
+}
+
+/**
+ * Security posture, asserted against the running API rather than the source.
+ *
+ * These are written to fail loudly today. The middleware chain is cors() with
+ * default options and nothing else: no helmet, no rate limiter, and the
+ * permissive default still reflects the framework and version in
+ * X-Powered-By. Recording that as a failing check is the point. Deleting the
+ * check would turn a known gap into an invisible one.
+ */
+async function securitySuite(apiBase) {
+  console.log("\nSecurity headers and CORS");
+
+  const health = await fetch(`${apiBase}/api/health`);
+  const headers = Object.fromEntries(health.headers.entries());
+
+  // helmet's default set, minus the ones that are informational.
+  const EXPECTED_HEADERS = [
+    "content-security-policy",
+    "strict-transport-security",
+    "x-content-type-options",
+    "x-frame-options",
+    "referrer-policy",
+  ];
+  const missing = EXPECTED_HEADERS.filter((name) => !headers[name]);
+  check("security", "security headers are present", missing.length === 0,
+    missing.length ? `missing: ${missing.join(", ")}` : EXPECTED_HEADERS.join(", "));
+
+  check("security", "server does not advertise its stack", !headers["x-powered-by"],
+    headers["x-powered-by"] ? `X-Powered-By: ${headers["x-powered-by"]} disclosed` : "absent");
+
+  // A wildcard origin lets any page on the internet read this API from a
+  // visitor's browser. That is only safe for genuinely public data, which the
+  // simulations and analysis endpoints are not.
+  const foreign = await fetch(`${apiBase}/api/health`, {
+    headers: { Origin: "https://not-our-domain.example" },
+  });
+  const allowOrigin = foreign.headers.get("access-control-allow-origin");
+  check("security", "CORS does not allow arbitrary origins",
+    allowOrigin !== "*" && allowOrigin !== null,
+    allowOrigin === "*" ? "Access-Control-Allow-Origin: *" : `allow-origin=${allowOrigin ?? "absent"}`);
+
+  // 25 back-to-back calls to a Gemini-backed route. Without a limiter every
+  // one is served, so the free tier is one demo click away from being spent.
+  const codes = [];
+  for (let i = 0; i < 25; i += 1) {
+    const response = await fetch(`${apiBase}/api/analysis`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ simulationId: "rate-limit-probe" }),
+    });
+    codes.push(response.status);
+  }
+  const throttled = codes.filter((code) => code === 429).length;
+  check("security", "Gemini-backed route is rate limited", throttled > 0,
+    throttled > 0
+      ? `${throttled}/25 calls returned 429`
+      : `0/25 calls throttled (${[...new Set(codes)].join(",")}) - no limiter in the chain`);
+}
+
 async function tileResilienceSuite(url) {
   console.log("\nTile resilience");
   const session = await launchChrome({ width: 1440, height: 900, port: 9333 });
@@ -934,6 +1090,8 @@ async function main() {
     }
     await desktopSuite(preview.url);
     await mobileSuite(preview.url);
+    await responsiveSuite(preview.url);
+    await securitySuite(`http://127.0.0.1:${API_PORT}`);
     await tileResilienceSuite(preview.url);
     await heroFaultSuite(preview.url);
   } finally {
