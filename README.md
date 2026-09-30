@@ -1,5 +1,11 @@
 # CycloneShield AI
 
+## 🚀 Live Demo
+
+**Live Application:** https://cycloneshield-ai-fawn.vercel.app/
+
+AI-powered cyclone preparedness and risk decision-support dashboard for simulated disaster scenarios over Odisha, India.
+
 A single-page preparedness dashboard for a synthetic cyclone scenario over Odisha,
 India. It combines a seeded scenario (cyclone track, impact zones, infrastructure
 assets) with live Open-Meteo weather and elevation, runs a deterministic risk
