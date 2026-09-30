@@ -8,8 +8,6 @@ simulation in the browser, and produces Gemini-backed advisory narrative.
 The scenario is **synthetic** and exists for demonstration. It is not an observed
 or forecast cyclone, and the advisory output is explicitly labelled as simulated.
 
-Demo video: <link to be added>
-
 ## Stack
 
 | Layer | Choice |
@@ -45,22 +43,41 @@ npm run build
 
 `npm run verify:release` exercises the production build the way a reviewer would:
 it builds, boots the API, serves `apps/web/dist` behind a small static server,
-drives it with headless Chrome at desktop and mobile viewports, asserts the
-behaviours that are easy to break, and writes the screenshots to
-`docs/screenshots/`.
+drives it with headless Chrome, asserts the behaviours that are easy to break,
+and writes the screenshots to `docs/screenshots/`.
 
 ```bash
 npm run verify:release                       # full run, deterministic advisory
 npm run verify:release -- --no-build         # re-run against the current build
 npm run verify:release -- --live-gemini      # allow one live provider call
+npm run verify:release -- --record           # capture a PNG walkthrough
 npm run verify:release -- --out /tmp/shots   # write evidence elsewhere
 ```
 
-It covers the hero contrast and animation safeguards (reduced motion, viewport
-pause, 45fps watchdog, mobile pixel budget), the initial map framing and that
-`Fit scenario` returns to it, seeded-scenario freshness wording, agreement between
-the coverage card and the infrastructure list, recalculation on control change,
-and the advisory's non-official framing. It exits non-zero on any failure.
+Six suites, 74 checks. It covers the hero contrast and animation safeguards
+(reduced motion, viewport pause, 45fps watchdog with a warmup window, mobile
+pixel budget), the initial map framing and that `Fit scenario` returns to it,
+seeded-scenario freshness wording, the live weather card reporting both its
+observation hour and the real upstream fetch time rather than "just now",
+agreement between the coverage card and the infrastructure list, recalculation
+on control change, and the advisory's non-official framing.
+
+Three suites exist because those behaviours cannot be unit tested:
+
+- **Responsive sweep** loads 360, 390, 768, 1024, 1440 and 1920 and asserts no
+  horizontal overflow, a rendered hero, the `h1` inside the viewport, and zero
+  console errors at each. The widths between the two end-of-range viewports are
+  where layout bugs hide.
+- **Tile resilience** fails real tile requests over CDP and asserts the map keeps
+  its 20 track paths and 24 markers, shows a notice only on sustained failure,
+  stays interactive, and recovers.
+- **Hero loop fault containment** makes canvas `stroke()` throw mid-draw and
+  asserts the effect stops itself, keeps a clean static frame, and leaves the
+  rest of the dashboard interactive.
+
+The **security** suite asserts headers, CORS and rate limiting, and currently
+**fails** — see "No security middleware" below. It is committed red on purpose so
+the gap stays visible instead of quietly becoming normal.
 
 The run makes **no live provider calls** unless you pass `--live-gemini`; the API
 is started with an empty `GEMINI_API_KEY` so the advisory uses the deterministic
@@ -83,7 +100,7 @@ running this outside a demo.
 
 ### Monolithic client bundle
 
-The web app ships as a single JS chunk (~898 kB raw, ~257 kB gzipped) with no
+The web app ships as a single JS chunk (~902 kB raw, ~257 kB gzipped) with no
 code splitting. Map, chart and canvas libraries are all pulled into the entry
 chunk, so first load pays for code most visitors never scroll to. The fix is
 route-level or vendor-level `React.lazy` splitting with the map and chart
@@ -91,15 +108,23 @@ deferred until their sections approach the viewport. Deliberately deferred:
 splitting touches module boundaries across the app and needs its own visual
 regression pass, which did not fit the remaining time.
 
-### No component-level tests
+### Thin React test coverage
 
-Test coverage is concentrated in the API and the shared risk engine. The React
-components have no rendering or interaction tests — the UI was verified manually
-and through throwaway browser scripts rather than an automated suite. The highest
-value target is `simulation-workspace.tsx`, where the debounce/abort lifecycle and
-the advisory error paths are easy to regress silently. Deliberately deferred:
-adding a component test stack (rendering library, jsdom setup) late in the
-timeline risked destabilising a working build for limited gain.
+The API and the shared risk engine carry the unit coverage, and the pure client
+modules that hold the tricky rules are tested directly: `tile-health.ts` (the
+threshold and window that decide when to tell the user tiles are failing),
+`frame-loop.ts` (scheduling and fault containment), `format.ts` and `geo.ts`.
+The error boundary is exercised at the state-machine level.
+
+What is still missing is true rendering coverage. No component test stack
+(rendering library, jsdom) is installed, so the boundary test asserts the
+fallback and subtree-swap behaviour without mounting a real throwing child, and
+`simulation-workspace.tsx` — the debounce/abort lifecycle and advisory error
+paths — has no automated interaction test at all. The browser suites in
+`verify:release` cover a lot of this at the integration level, but they assert
+end-state behaviour, not component boundaries. Deliberately deferred: adding a
+rendering stack late in the timeline risked destabilising a working build for
+limited gain.
 
 ### No security middleware
 
@@ -108,7 +133,14 @@ authorisation on any route. That is acceptable for a single-user demo on a
 protected preview deployment, and unacceptable for a real deployment. Required
 before production: `helmet`, an explicit CORS origin allowlist, rate limiting on
 the Gemini-backed analysis route (which spends money per call), and auth. The API
-is currently unauthenticated. Deliberately deferred: hardening that changes
+is currently unauthenticated.
+
+This is asserted, not assumed. The `security` suite in `verify:release` fails
+four checks today: no CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options` or
+`Referrer-Policy`; `X-Powered-By: Express` still discloses the stack;
+`Access-Control-Allow-Origin: *`; and 25 back-to-back calls to the Gemini route
+produce zero `429`s. The production build also ships its source map, which hands
+a reader the unminified source. Deliberately deferred: hardening that changes
 response headers needed its own verification pass.
 
 ### `simulation-workspace.tsx` is too large
@@ -137,6 +169,34 @@ firing.
 The database is a single file on local disk, which does not survive a serverless
 cold start and cannot be shared between instances. Moving to a hosted database is
 a prerequisite for running more than one API instance.
+
+## Failure behaviour
+
+A demo is judged on its worst moment, so the failure paths are deliberate rather
+than incidental.
+
+**Map tiles.** A failed base tile used to replace the map with a full-screen
+error, which also hid the storm track, the impact zones and every asset marker —
+vector overlays that were still drawn, and perfectly readable, underneath it. One
+404 from a tile CDN could therefore erase the data the demo exists to show.
+Tiles are counted instead: a single failure is silent, and a small
+non-blocking notice appears only after eight or more errors inside ten seconds
+with no successful load. It never covers the map and does not intercept a pan.
+
+**Live weather.** The card reports the observation's own local hour and the time
+Open-Meteo was actually called, e.g. `20:00 IST · fetched 20:31`, rather than
+"Just now". The hour is resolved per request against the response's
+`utc_offset_seconds`; the fetch time travels with the cached body, so a warm read
+reports when the data was fetched, not when it was served. The forecast body is
+cached for 20 minutes, so "just now" would have claimed a quarter-hour-old
+reading was live.
+
+**Rendering faults.** An error boundary sits at the root, around the map, and
+around the hero effect, so a failure costs one section rather than the page. The
+fallback offers a Reload button and deliberately shows no stack trace. React
+boundaries do not catch errors thrown from a `requestAnimationFrame` callback,
+which is most of the hero, so that loop is guarded separately: on a fault it
+stops, repaints a clean still frame, and keeps the rest of the dashboard live.
 
 ## Data sources
 
